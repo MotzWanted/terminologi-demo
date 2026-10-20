@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From ICD-10 to SNOMED CT — Live Demo · Terminologikonference 2026</title>
+<style>
+/* ==========================================================================
+   Design system — matches patient_graph_explorer_5 tokens
+   ========================================================================== */
+:root{
+  --paper:#F6F6F4; --panel:#FFFFFF; --sunk:#EFEFEC;
+  --ink:#1A1B1E; --ink-2:#55565B; --ink-3:#8A8B90;
+  --rule:#DCDCD7; --rule-2:#C2C2BC;
+  --accent:#2E5C8A; --accent-bg:#E7EFF7;
+  --warn:#8A5A11; --warn-bg:#FAF0DC; --bad:#9B2C2C; --bad-bg:#FBEAEA;
+  --good:#2D6A4F; --good-bg:#E8F5F0;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --r:6px;
+}
+html[data-theme="dark"]{
+  --paper:#16171A; --panel:#1E2024; --sunk:#232529;
+  --ink:#EDEDEA; --ink-2:#A6A7AC; --ink-3:#74757A;
+  --rule:#33353A; --rule-2:#45474D;
+  --accent:#7FB0E0; --accent-bg:#1D2A38;
+  --warn:#D2A24C; --warn-bg:#332A18; --bad:#E28080; --bad-bg:#33201F;
+  --good:#6FCF97; --good-bg:#1A3328;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow:hidden;height:100vh}
+
+/* ---- App shell ---- */
+#app{display:flex;flex-direction:column;height:100vh}
+
+/* ---- Top bar ---- */
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 20px;border-bottom:1px solid var(--rule-2);background:var(--panel);flex:none}
+.topbar .brand{display:flex;align-items:center;gap:14px}
+.topbar .logo{font-size:16px;font-weight:700;letter-spacing:-0.02em;color:var(--accent)}
+.corti-logo{height:22px;width:auto;filter:none}
+html[data-theme="dark"] .corti-logo{filter:invert(1)}
+.topbar .conf{font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+.topbar .patient-tag{font-family:var(--mono);font-size:12px;color:var(--ink-2);background:var(--sunk);padding:3px 10px;border-radius:var(--r);white-space:nowrap}
+
+/* ---- Pane indicator ---- */
+.pane-indicator{display:flex;gap:3px;align-items:center}
+.pane-indicator .pi{width:24px;height:4px;border-radius:2px;background:var(--rule);transition:background .2s}
+.pane-indicator .pi.active{background:var(--accent)}
+.pane-indicator .pi.done{background:var(--ink-3)}
+
+/* ---- Main area (note panel + pane area) ---- */
+.main-area{display:flex;flex:1;overflow:hidden}
+.note-panel{flex:1;min-width:0;overflow:auto;padding:20px 24px;border-right:1px solid var(--rule-2);background:var(--panel)}
+.note-panel h2{font-size:13px;font-weight:600;margin:0 0 2px;color:var(--ink-2)}
+.note-panel .note-date{font-size:11px;font-family:var(--mono);color:var(--ink-3);margin-bottom:14px}
+.note-panel .note-text{font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.note-panel-label{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--rule)}
+
+/* Scrollbar styling — adapts to theme */
+.note-panel,.pane,.p2-list,.p2-subcontent,.p3-subcontent,.p4-stage{scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+.note-panel::-webkit-scrollbar,.pane::-webkit-scrollbar,.p2-list::-webkit-scrollbar,.p2-subcontent::-webkit-scrollbar,.p3-subcontent::-webkit-scrollbar,.p4-stage::-webkit-scrollbar{width:8px;height:8px}
+.note-panel::-webkit-scrollbar-track,.pane::-webkit-scrollbar-track,.p2-list::-webkit-scrollbar-track,.p2-subcontent::-webkit-scrollbar-track,.p3-subcontent::-webkit-scrollbar-track,.p4-stage::-webkit-scrollbar-track{background:transparent}
+.note-panel::-webkit-scrollbar-thumb,.pane::-webkit-scrollbar-thumb,.p2-list::-webkit-scrollbar-thumb,.p2-subcontent::-webkit-scrollbar-thumb,.p3-subcontent::-webkit-scrollbar-thumb,.p4-stage::-webkit-scrollbar-thumb{background:var(--rule);border-radius:4px}
+.note-panel::-webkit-scrollbar-thumb:hover,.pane::-webkit-scrollbar-thumb:hover,.p2-list::-webkit-scrollbar-thumb:hover,.p2-subcontent::-webkit-scrollbar-thumb:hover,.p3-subcontent::-webkit-scrollbar-thumb:hover,.p4-stage::-webkit-scrollbar-thumb:hover{background:var(--ink-3)}
+
+/* ---- Pane area (right side) ---- */
+.pane-area{flex:1;min-width:0;overflow:hidden;position:relative}
+.pane{position:absolute;inset:0;overflow:auto;display:none}
+.pane.active{display:block;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ---- Bottom bar ---- */
+.bottombar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:8px 20px;border-top:1px solid var(--rule-2);background:var(--panel);flex:none}
+.bottombar .keys{display:flex;gap:14px;align-items:center;font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+.bottombar .key{display:inline-flex;align-items:center;gap:4px}
+.bottombar kbd{font-family:var(--mono);font-size:10px;background:var(--sunk);border:1px solid var(--rule-2);border-radius:3px;padding:1px 5px;color:var(--ink-2)}
+.bottombar .spacer{flex:1}
+
+/* ==========================================================================
+   Shared components
+   ========================================================================== */
+.section-label{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);margin:0 0 8px}
+.card{border:1px solid var(--rule-2);border-radius:8px;background:var(--panel);padding:14px 16px}
+.card h2{margin:0 0 10px;font-size:14px;font-weight:600}
+.tag{font-size:11px;padding:2px 8px;border-radius:var(--r);background:var(--sunk);color:var(--ink-2);white-space:nowrap}
+.quote{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:var(--sunk);border-left:2px solid var(--rule-2);padding:7px 9px;margin:8px 0 0;word-break:break-word}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px;margin:0}
+.kv dt{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap;padding-top:2px}
+.kv dd{margin:0;color:var(--ink)}
+.code-pill{font-family:var(--mono);font-size:12px;background:var(--sunk);padding:2px 7px;border-radius:4px;color:var(--ink);font-weight:500}
+.hl{background:#FFF3B0;border-radius:2px;padding:0 1px}
+html[data-theme="dark"] .hl{background:#5C520F;color:inherit}
+.reveal{opacity:0;transform:translateY(12px);transition:opacity .4s ease,transform .4s ease}
+.reveal.show{opacity:1;transform:translateY(0)}
+.reveal.delay-1{transition-delay:.08s}
+.reveal.delay-2{transition-delay:.16s}
+.reveal.delay-3{transition-delay:.24s}
+.reveal.delay-4{transition-delay:.32s}
+
+/* ==========================================================================
+   Pane 1 — Console facsimile
+   ========================================================================== */
+.p1-codes{overflow:auto;padding:20px 24px;height:100%}
+.p1-codes .codes-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.p1-codes .tab-btns{display:flex;gap:6px}
+.p1-codes .tab-btn{font-size:13px;padding:4px 14px;border:1px solid var(--rule-2);border-radius:var(--r);background:var(--panel);cursor:pointer;color:var(--ink-2)}
+.p1-codes .tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.code-card{border:1px solid var(--rule-2);border-radius:8px;background:var(--panel);margin-bottom:10px;overflow:hidden;transition:border-color .2s}
+.code-card:hover{border-color:var(--ink-3)}
+.code-card.hl-active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.code-card .cc-head{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer}
+.code-card .cc-code{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--accent)}
+.code-card .cc-display{font-size:13px;color:var(--ink);flex:1}
+.code-card .cc-role{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
+.code-card .cc-body{padding:0 14px 12px;display:none;border-top:1px solid var(--rule)}
+.code-card.open .cc-body{display:block}
+.code-card .cc-evidence{margin-top:10px}
+.code-card .cc-evidence-list{list-style:none;padding:0;margin:4px 0 0}
+.code-card .cc-evidence-list li{font-size:11px;color:var(--ink-2);padding:2px 0;padding-left:14px;position:relative;font-family:var(--mono);cursor:pointer}
+.code-card .cc-evidence-list li:hover{color:var(--accent)}
+.code-card .cc-evidence-list li::before{content:"›";position:absolute;left:0;color:var(--accent);font-weight:600}
+.code-card .cc-alternatives{margin-top:10px}
+.code-card .alt-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;padding:4px 0}
+.code-card .alt-header:hover .section-label{color:var(--accent)}
+.code-card .alt-chevron{font-size:10px;color:var(--ink-3);transition:transform .2s}
+.code-card .alt-body{display:none;margin-top:4px}
+.code-card .cc-alternatives.open .alt-body{display:block}
+.code-card .cc-alternatives.open .alt-chevron{transform:rotate(180deg)}
+.code-card .alt-item{padding:6px 0;border-bottom:1px solid var(--rule)}
+.code-card .alt-item:last-child{border-bottom:none}
+.code-card .alt-item-head{margin-bottom:2px}
+.code-card .alt-code{font-family:var(--mono);font-size:11px;color:var(--ink-2);font-weight:500}
+.code-card .alt-display{font-size:11px;color:var(--ink-2)}
+.code-card .alt-reason{font-size:10.5px;color:var(--ink-3);line-height:1.4}
+.code-card .cc-guideline{margin-top:12px;background:var(--sunk);border-radius:6px;padding:12px 14px;border-left:3px solid var(--accent)}
+.code-card .gl-breadcrumb{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-bottom:6px}
+.code-card .gl-title{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:6px;cursor:pointer}
+.code-card .gl-title:hover{color:var(--accent)}
+.code-card .gl-excerpt{font-size:11.5px;color:var(--ink-2);line-height:1.55;margin-bottom:8px}
+.code-card .gl-hints{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.code-card .gl-hint{font-size:11.5px;color:var(--ink);line-height:1.5;background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:6px 10px}
+.code-card .gl-hint-label{display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);font-weight:600;margin-right:6px;background:rgba(255,255,255,.06);padding:1px 6px;border-radius:3px}
+.code-card .gl-ref{font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:6px;cursor:pointer}
+.code-card .gl-ref:hover{text-decoration:underline}
+.code-card .gl-drilldown{margin-top:8px;border-top:1px solid var(--rule);padding-top:8px;display:none}
+.code-card .gl-drilldown.open{display:block}
+.code-card .gl-sub-item{margin-bottom:8px}
+.code-card .gl-sub-item .gl-sub-title{font-size:11px;font-weight:600;color:var(--ink);margin-bottom:2px}
+.code-card .gl-sub-item .gl-sub-excerpt{font-size:11px;color:var(--ink-3);line-height:1.5}
+.code-card .gl-sub-item[onclick]:hover .gl-sub-title{color:var(--accent)}
+.code-card .gl-sub-link{font-size:10px;opacity:.6}
+.code-card .gl-sub-item[onclick]:hover .gl-sub-link{opacity:1}
+
+/* PDF viewer in the right pane */
+.pdf-viewer{display:flex;flex-direction:column;height:100%}
+.pdf-header{display:flex;align-items:center;justify-content:space-between;padding:10px 0 12px;border-bottom:1px solid var(--rule);margin-bottom:0;flex-shrink:0}
+.pdf-back{font-size:13px;color:var(--accent);cursor:pointer;font-weight:500}
+.pdf-back:hover{text-decoration:underline}
+.pdf-title{font-size:13px;font-weight:600;color:var(--ink)}
+.pdf-section{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.pdf-canvas-wrap{flex:1;overflow:auto;background:#525659;position:relative;display:flex;justify-content:center;padding:16px}
+.pdf-canvas{box-shadow:0 4px 16px rgba(0,0,0,.3);max-width:100%;height:auto}
+.pdf-text-layer{position:absolute;top:16px;left:50%;transform:translateX(-50%);opacity:1;pointer-events:none}
+.pdf-text-layer span{pointer-events:auto}
+.pdf-highlight{background:rgba(255,215,0,.45);border-radius:2px;box-shadow:0 0 0 1px rgba(255,200,0,.6)}
+.pdf-loading{color:var(--ink-3);font-size:13px;padding:40px;text-align:center}
+.pdf-error{color:#e74c3c;font-size:13px;padding:40px;text-align:center}
+
+/* Evidence highlight in the note */
+.ev-hl{background:#FFF3B0;border-radius:2px;padding:0 1px;transition:all .3s ease;cursor:pointer}
+html[data-theme="dark"] .ev-hl{background:#5C520F}
+.ev-hl.active{background:#FFEB3B;box-shadow:0 0 0 2px rgba(255,235,59,.4);animation:sparkle 1s ease}
+html[data-theme="dark"] .ev-hl.active{background:#8B7F0E;box-shadow:0 0 0 2px rgba(255,200,0,.3)}
+.ev-stmt{border-bottom:1.5px dotted var(--accent);cursor:pointer;transition:all .3s ease}
+.ev-stmt.active{background:var(--accent-bg);border-bottom-style:solid;box-shadow:0 0 0 2px rgba(99,102,241,.2);animation:sparkle 1s ease}
+html[data-theme="dark"] .ev-stmt.active{background:rgba(99,102,241,.15)}
+.stmt-item.hl-active{background:var(--accent-bg);border-left:3px solid var(--accent);padding-left:7px}
+.res-card[onclick]:hover{border-color:var(--accent);cursor:pointer}
+.res-card.hl-active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg)}
+@keyframes sparkle{0%{box-shadow:0 0 0 0 rgba(255,235,59,.6)}50%{box-shadow:0 0 0 6px rgba(255,235,59,.2)}100%{box-shadow:0 0 0 0 rgba(255,235,59,0)}}
+
+/* ==========================================================================
+   Pane 2 — SNOMED CT
+   ========================================================================== */
+.p2-layout{display:grid;grid-template-columns:210px 1fr;gap:0;height:100%}
+.p2-list{overflow:auto;padding:20px 20px;border-right:1px solid var(--rule-2)}
+.p2-list .stmt-item{display:flex;align-items:flex-start;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;margin-bottom:2px}
+.p2-list .stmt-item:hover{background:var(--sunk)}
+.p2-list .stmt-item.active{background:var(--accent-bg)}
+.p2-list .stmt-item .sw{width:8px;height:8px;border-radius:50%;flex:none;margin-top:4px}
+.p2-list .stmt-item .si-name{font-size:12.5px;font-weight:500}
+.p2-list .stmt-item .si-code{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.p2-main{overflow:hidden;display:flex;flex-direction:column}
+.p2-detail{padding:16px 24px;border-bottom:1px solid var(--rule-2);overflow:auto;flex:1;min-height:0}
+.p2-subtabs{display:flex;gap:0;padding:0 24px;border-bottom:1px solid var(--rule-2);flex-wrap:wrap}
+.p2-subtab{font-size:12.5px;padding:10px 12px;cursor:pointer;color:var(--ink-2);border-bottom:2px solid transparent;white-space:nowrap}
+.p2-subtab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.p2-subcontent{flex:1;overflow:auto;padding:20px 24px;min-height:0}
+
+/* Downstream cards */
+.ds-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ds-card{border:1px solid var(--rule-2);border-radius:8px;background:var(--panel);padding:14px}
+.ds-card.hero{border-color:var(--bad);border-width:2px;grid-column:1/-1}
+.ds-card .ds-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:8px}
+.ds-card .ds-badge{font-size:10px;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.05em;font-family:var(--mono)}
+.ds-card .ds-badge.fired{background:var(--bad-bg);color:var(--bad)}
+.ds-card .ds-badge.ok{background:var(--good-bg);color:var(--good)}
+.ds-card .ds-badge.info{background:var(--accent-bg);color:var(--accent)}
+.ds-card .ds-row{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;margin:4px 0}
+.ds-card .ds-row dt{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.ds-card .ds-row dd{margin:0}
+.ds-card .ds-criteria{list-style:none;padding:0;margin:6px 0 0}
+.ds-card .ds-criteria li{font-size:11px;color:var(--ink-2);padding:2px 0;padding-left:16px;position:relative}
+.ds-card .ds-criteria li::before{content:"✓";position:absolute;left:0;color:var(--good);font-weight:600}
+.ds-explain{font-size:11.5px;color:var(--ink-2);margin:4px 0;line-height:1.4}
+.ds-section-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--rule-2)}
+.det-label{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;margin:10px 0 3px;padding-bottom:2px}
+.snomed-label{color:var(--good);border-bottom:1px solid var(--good)}
+.nlp-label{color:var(--ink-3);border-bottom:1px solid var(--rule-2)}
+
+/* SNOMED browser-style concept header */
+.snomed-concept-header{border:1px solid var(--good);border-radius:8px;padding:12px 14px;margin-bottom:8px;background:rgba(34,197,94,.04)}
+html[data-theme="dark"] .snomed-concept-header{background:rgba(34,197,94,.08)}
+.snomed-id{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-bottom:2px}
+.snomed-pt{font-size:16px;font-weight:700;color:var(--ink-1)}
+.snomed-fsn{font-size:11.5px;color:var(--ink-2);font-style:italic;margin-top:2px}
+
+/* Unified relationships — is-a + attributes in one visual block */
+.rel-container{display:flex;flex-direction:column;gap:0;background:var(--sunk);border-radius:6px;padding:8px 10px;margin-top:4px}
+.rel-row{display:flex;align-items:baseline;gap:6px;font-size:11.5px;padding:4px 0}
+.rel-row + .rel-row{border-top:1px solid var(--rule)}
+.rel-type{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;min-width:110px;flex-shrink:0}
+.rel-arrow{color:var(--ink-3);font-size:10px;flex-shrink:0}
+.rel-value{color:var(--ink-2);font-size:11px}
+.rel-sep{color:var(--ink-3);margin:0 2px}
+.rel-self{color:var(--good);font-weight:600}
+/* Three meaningful relationship categories */
+.is-a-pill{color:var(--good)}              /* hierarchical — taxonomy backbone */
+.rel-structural{color:var(--accent)}       /* structural — what it IS (anatomy, morphology, method) */
+.rel-contextual{color:var(--warn)}         /* contextual — clinical context (who, confirmed/refuted, course, severity) */
+
+/* Subsumption cards */
+.sub-intro{font-size:12px;color:var(--ink-2);margin-bottom:14px;line-height:1.5}
+.match-tag{display:inline-block;background:var(--accent-bg);color:var(--accent);padding:2px 8px;border-radius:3px;margin:2px;font-size:11px}
+.sub-footer{font-size:11.5px;color:var(--ink-3);margin-top:10px;padding:10px 14px;background:var(--accent-bg);border-radius:6px;line-height:1.5}
+
+/* Downstream task carousel — one task at a time, large text */
+.task-carousel{display:flex;flex-direction:column;height:100%}
+.task-nav{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+.task-nav-btns{display:flex;align-items:center;gap:12px}
+.task-btn{font-family:var(--sans);font-size:18px;font-weight:600;color:var(--accent);background:var(--panel);border:1px solid var(--rule-2);border-radius:var(--r);padding:2px 14px;cursor:pointer;transition:all .2s}
+.task-btn:hover:not(:disabled){background:var(--accent-bg);border-color:var(--accent)}
+.task-btn:disabled{opacity:.3;cursor:default}
+.task-counter{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+
+.task-hero{margin-bottom:20px}
+.task-cap-badge{display:inline-block;font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:600;background:var(--accent-bg);padding:4px 12px;border-radius:4px}
+.task-query-big{font-size:22px;font-weight:700;color:var(--ink-1);line-height:1.3;margin-bottom:6px}
+
+/* Cohort identification — multi-criteria filters */
+.task-trial-context{font-size:13px;color:var(--ink-2);line-height:1.5;margin:10px 0 14px;padding:10px 14px;background:var(--sunk);border-radius:6px}
+.task-filter{display:flex;align-items:center;gap:8px;padding:8px 12px;margin:4px 0;border:1px solid var(--rule-2);border-radius:6px;background:var(--panel)}
+.filter-rel{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;min-width:160px;flex-shrink:0}
+.filter-crit{font-size:13px;color:var(--ink-2);flex:1}
+.filter-arrow{color:var(--ink-3)}
+.filter-match{font-size:13px;color:var(--good);font-weight:600}
+.task-filter-result{font-size:14px;color:var(--good);font-weight:600;text-align:center;padding:12px;margin-top:10px;background:var(--good-bg);border-radius:6px}
+
+.task-expr{border:1px solid var(--good);border-radius:8px;padding:14px 16px;margin:14px 0;background:rgba(34,197,94,.04)}
+html[data-theme="dark"] .task-expr{background:rgba(34,197,94,.08)}
+.task-expr .pc-concept{font-size:14px;font-weight:600;margin-bottom:6px}
+.task-expr .pc-concept .mc{font-family:var(--mono);font-size:13px}
+.task-expr .pc-attr{display:flex;gap:8px;padding:3px 0;font-size:13px}
+.task-expr .pc-attr-key{color:var(--accent);font-family:var(--mono);font-size:12px;min-width:150px;flex-shrink:0}
+.task-expr .pc-decision{background:var(--good-bg);border-radius:4px;padding:6px 8px;font-weight:600}
+.task-expr .pc-decision .pc-attr-key{color:var(--good)}
+
+/* ADR prevention flow */
+.task-flow{margin:12px 0}
+.flow-step{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;margin:4px 0;border:1px solid var(--rule-2);border-radius:6px;background:var(--panel)}
+.flow-step.flow-alert{border-color:var(--bad);background:var(--bad-bg)}
+.flow-num{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);min-width:20px;flex-shrink:0}
+.flow-step.flow-alert .flow-num{color:var(--bad)}
+.flow-text{font-size:13px;color:var(--ink-2);line-height:1.5}
+.flow-step.flow-alert .flow-text{color:var(--bad);font-weight:600}
+
+.task-refset{font-family:var(--mono);font-size:12px;color:var(--accent);padding:8px 14px;background:var(--accent-bg);border-radius:6px;margin:10px 0}
+.task-vs-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:10px 0}
+.task-vs-item{font-size:13px;padding:6px 10px;border-radius:4px;background:var(--sunk)}
+.task-vs-item.matched{background:var(--good-bg);color:var(--good);font-weight:600}
+.task-vs-item.alert{background:var(--bad-bg);color:var(--bad);font-weight:600}
+.task-vs-item .mc{font-family:var(--mono);font-size:12px}
+
+/* EHDS pseudonymisation — EHR record vs research record */
+.task-pseudonymize{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:start;margin:14px 0}
+.pseudo-col{border-radius:8px;padding:14px 16px}
+.pseudo-pii{background:var(--bad-bg);border:1px solid rgba(239,68,68,.2)}
+.pseudo-research{background:var(--good-bg);border:1px solid rgba(34,197,94,.2)}
+.pseudo-title{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:10px}
+.pseudo-pii .pseudo-title{color:var(--bad)}
+.pseudo-research .pseudo-title{color:var(--good)}
+.pseudo-field{display:flex;gap:8px;padding:4px 0;font-size:13px;border-bottom:1px solid var(--rule)}
+.pseudo-field:last-child{border-bottom:none}
+.pseudo-label{color:var(--ink-3);font-family:var(--mono);font-size:11px;min-width:75px;flex-shrink:0}
+.pseudo-value{color:var(--ink-2)}
+.pseudo-arrow{font-size:24px;color:var(--ink-3);align-self:center;padding:0 4px}
+
+/* Map table */
+.map-table{width:100%;border-collapse:collapse;font-size:12px}
+.map-table th{text-align:left;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);padding:6px 10px;border-bottom:1px solid var(--rule-2)}
+.map-table td{padding:7px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+.map-table .mc{font-family:var(--mono);font-size:11px}
+.map-table .sys-tag{font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;display:block}
+.map-table tr:hover td{background:var(--sunk)}
+
+/* ==========================================================================
+   Pane 3 — FHIR
+   ========================================================================== */
+/* Pane 3 — FHIR */
+.p3-main{overflow:hidden;display:flex;flex-direction:column;height:100%}
+.p3-subtabs{display:flex;gap:0;padding:0 24px;border-bottom:1px solid var(--rule-2);flex-wrap:wrap}
+.p3-subtab{font-size:12.5px;padding:10px 12px;cursor:pointer;color:var(--ink-2);border-bottom:2px solid transparent;white-space:nowrap}
+.p3-subtab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.p3-subcontent{flex:1;overflow:auto;padding:20px 24px;min-height:0}
+.p3-json-view{overflow:auto;font-family:var(--mono);font-size:11.5px;line-height:1.6;white-space:pre}
+.p3-json-view .j-key{color:var(--accent)}
+.p3-json-view .j-string{color:var(--good)}
+.p3-json-view .j-num{color:var(--warn)}
+.p3-json-view .j-bool{color:var(--bad)}
+.p3-json-view .j-null{color:var(--ink-3)}
+.res-card{border:1px solid var(--rule-2);border-radius:8px;background:var(--panel);padding:12px 14px;margin-bottom:8px}
+.res-card .res-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.res-card .res-type{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-bg);padding:2px 8px;border-radius:4px}
+.res-card .res-code{font-size:13px;font-weight:500}
+.res-card .res-fields{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:11.5px}
+.res-card .res-fields dt{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+
+/* ==========================================================================
+   Pane 4 — Timeline (port of patient_graph_explorer_5)
+   ========================================================================== */
+.p4-layout{height:100%;display:flex;flex-direction:column}
+.p4-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 20px;border-bottom:1px solid var(--rule-2);background:var(--panel)}
+.p4-bar .grouplabel{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
+.p4-bar button{font-family:inherit;font-size:12px;color:var(--ink);background:var(--panel);border:1px solid var(--rule-2);border-radius:var(--r);padding:4px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.p4-bar button:hover{border-color:var(--ink-3)}
+.p4-bar button.off{color:var(--ink-3);background:transparent;border-style:dashed}
+.p4-bar .sw{width:9px;height:9px;border-radius:50%;flex:none}
+.p4-bar .swl{width:16px;height:0;border-top-width:2px;border-top-style:solid;flex:none}
+.p4-bar .count{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.p4-stage{flex:1;overflow:auto;position:relative;padding:18px 24px 0}
+.p4-stage .stage{border:1px solid var(--rule-2);border-radius:8px;background:var(--panel);overflow:hidden}
+.p4-stage .stagebar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 10px;border-bottom:1px solid var(--rule);background:var(--sunk)}
+.p4-stage .hint{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.p4-stage .stagebar button{font-family:inherit;font-size:12px;color:var(--ink);background:var(--panel);border:1px solid var(--rule-2);border-radius:var(--r);padding:4px 10px;cursor:pointer}
+.p4-stage .stagebar button:hover{border-color:var(--ink-3)}
+.p4-stage .stage.full{position:fixed;inset:24px;z-index:100;display:flex;flex-direction:column;box-shadow:0 0 0 100vmax rgba(0,0,0,.55)}
+.p4-stage .stage.full #p4-svgbox{flex:1;min-height:0;display:flex;align-items:center}
+.p4-stage .stage.full svg{max-height:100%}
+.p4-stage #svgbox{position:relative;overflow:hidden;background:var(--panel)}
+.p4-stage svg{display:block;width:100%;height:auto;touch-action:none}
+.p4-detail{flex:none;overflow:auto;max-height:240px;padding:14px 24px;border-top:1px solid var(--rule-2)}
+.p4-detail .edge{border-top:1px solid var(--rule);padding:8px 0}
+.p4-detail .edge:first-of-type{border-top:none}
+.p4-detail .ename{font-family:var(--mono);font-size:11.5px}
+.p4-detail .enote{font-size:11px;color:var(--ink-3);margin-top:3px}
+.p4-detail .sect{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);margin:14px 0 4px}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- =================== TOP BAR =================== -->
+  <div class="topbar">
+    <div class="brand">
+      <img src="corti-logo.svg" alt="Corti" class="corti-logo" />
+      <span class="conf">Digital Sundhed Danmark · Terminologikonference 2026</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="pane-indicator">
+        <div class="pi active" data-pane="1"></div>
+        <div class="pi" data-pane="2"></div>
+        <div class="pi" data-pane="3"></div>
+        <div class="pi" data-pane="4"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== MAIN AREA (note + panes) =================== -->
+  <div class="main-area">
+
+    <!-- ---- Persistent clinical note panel (left) ---- -->
+    <div class="note-panel" id="note-panel"><!-- raw note renders here --></div>
+
+    <!-- =================== PANE AREA (right) =================== -->
+    <div class="pane-area">
+
+    <!-- ---- Pane 1: Console ---- -->
+    <div class="pane active" id="pane-1">
+      <div class="p1-codes" id="p1-codes"><!-- code cards render here --></div>
+    </div>
+
+    <!-- ---- Pane 2: SNOMED CT ---- -->
+    <div class="pane" id="pane-2">
+      <div class="p2-layout">
+        <div class="p2-list" id="p2-list"><!-- statement list --></div>
+        <div class="p2-main">
+          <div class="p2-detail" id="p2-detail"><!-- concept expression + ICD-10 loss --></div>
+          <div class="p2-subtabs">
+            <div class="p2-subtab active" data-subtab="downstream">Downstream Tasks</div>
+            <div class="p2-subtab" data-subtab="maps">Concept Maps</div>
+          </div>
+          <div class="p2-subcontent" id="p2-subcontent"><!-- sub content --></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- Pane 3: FHIR ---- -->
+    <div class="pane" id="pane-3">
+      <div class="p3-main">
+        <div class="p3-subtabs">
+          <div class="p3-subtab active" data-subtab="resources">Resources</div>
+          <div class="p3-subtab" data-subtab="json">FHIR JSON</div>
+        </div>
+        <div class="p3-subcontent" id="p3-resources-pane"><!-- resource cards --></div>
+        <div class="p3-subcontent" id="p3-json-pane" style="display:none"><!-- FHIR JSON --></div>
+      </div>
+    </div>
+
+    <!-- ---- Pane 4: Timeline ---- -->
+    <div class="pane" id="pane-4">
+      <div class="p4-layout">
+        <div class="p4-bar">
+          <span class="grouplabel">Concepts</span><span id="p4-kindbar" style="display:flex;gap:8px;flex-wrap:wrap"></span>
+        </div>
+        <div class="p4-bar">
+          <span class="grouplabel">Links</span><span id="p4-linkbar" style="display:flex;gap:8px;flex-wrap:wrap"></span>
+        </div>
+        <div class="p4-stage">
+          <div class="stage">
+            <div class="stagebar">
+              <span class="hint">Click a statement</span>
+              <button id="p4-full" onclick="p4ToggleFull()">⛶ Full view</button>
+            </div>
+            <div id="p4-svgbox"></div>
+          </div>
+        </div>
+        <div class="card" id="p4-detail"></div>
+      </div>
+    </div>
+
+  </div><!-- /pane-area -->
+  </div><!-- /main-area -->
+
+  <!-- =================== BOTTOM BAR =================== -->
+  <div class="bottombar">
+    <div class="keys">
+      <span class="key"><kbd>1</kbd>–<kbd>4</kbd> panes</span>
+      <span class="key"><kbd>←</kbd> <kbd>→</kbd> step</span>
+      <span class="key"><kbd>Space</kbd> next</span>
+      <span class="key"><kbd>T</kbd> theme</span>
+    </div>
+    <div class="spacer"></div>
+  </div>
+
+</div>
+
+<script src="data.js"></script>
+<script src="pdf-data.js"></script>
+<script src="pdf.min.js"></script>
+<script src="pdf-viewer.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
