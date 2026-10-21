@@ -4,7 +4,7 @@
  * ========================================================================== */
 
 const D = PT001;
-let currentPane = 1;
+let currentPane = 0;
 let dark = false;
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -15,12 +15,14 @@ const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n)
    ========================================================================== */
 function showPane(n) {
   currentPane = n;
+  // Pane 0 is the note alone: no pane, no evidence marks
+  $("app").classList.toggle("pane0", n === 0);
   document.querySelectorAll(".pane").forEach((p, i) => {
     p.classList.toggle("active", i + 1 === n);
   });
-  document.querySelectorAll(".pi").forEach((p, i) => {
-    p.classList.toggle("active", i + 1 === n);
-    p.classList.toggle("done", i + 1 < n);
+  document.querySelectorAll(".pi").forEach(p => {
+    p.classList.toggle("active", +p.dataset.pane === n);
+    p.classList.toggle("done", +p.dataset.pane < n);
   });
   if (n === 1) renderPane1();
   if (n === 2) renderPane2();
@@ -30,10 +32,10 @@ function showPane(n) {
 
 document.addEventListener("keydown", e => {
   if (e.target.matches("input,button,textarea")) return;
-  if (e.key >= "1" && e.key <= "4") { showPane(+e.key); return; }
+  if (e.key >= "0" && e.key <= "4") { showPane(+e.key); return; }
   if (e.key === " ") { e.preventDefault(); if (currentPane < 4) showPane(currentPane + 1); return; }
   if (e.key === "ArrowRight" && currentPane < 4) showPane(currentPane + 1);
-  if (e.key === "ArrowLeft" && currentPane > 1) showPane(currentPane - 1);
+  if (e.key === "ArrowLeft" && currentPane > 0) showPane(currentPane - 1);
   if (e.key.toLowerCase() === "t") toggleTheme();
 });
 
@@ -437,7 +439,7 @@ document.addEventListener("click", e => {
   const hlSpan = e.target.closest(".ev-hl");
   const stmtSpan = e.target.closest(".ev-stmt");
   const clickedSpan = hlSpan || stmtSpan;
-  if (!clickedSpan) return;
+  if (!clickedSpan || currentPane === 0) return;
 
   // Resolve which SNOMED statement(s) are linked to this span
   const spanId = clickedSpan.id;
@@ -1198,4 +1200,4 @@ if (matchMedia("(prefers-color-scheme: dark)").matches) {
   document.documentElement.dataset.theme = "dark";
 }
 renderNote();   // Render the shared clinical note panel (visible across all panes)
-showPane(1);
+showPane(0);

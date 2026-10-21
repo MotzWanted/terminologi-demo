@@ -67,6 +67,9 @@ html[data-theme="dark"] .corti-logo{filter:invert(1)}
 .pane-area{flex:1;min-width:0;overflow:hidden;position:relative}
 .pane{position:absolute;inset:0;overflow:auto;display:none}
 .pane.active{display:block;animation:fadeIn .3s ease}
+
+/* Pane 0 — the note alone: same layout, empty right side, no evidence marks */
+#app.pane0 .ev-hl,#app.pane0 .ev-stmt{background:none;border:none;box-shadow:none;padding:0;cursor:text;animation:none}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 /* ---- Bottom bar ---- */
@@ -377,7 +380,8 @@ html[data-theme="dark"] .task-expr{background:rgba(34,197,94,.08)}
     </div>
     <div style="display:flex;align-items:center;gap:12px">
       <div class="pane-indicator">
-        <div class="pi active" data-pane="1"></div>
+        <div class="pi active" data-pane="0"></div>
+        <div class="pi" data-pane="1"></div>
         <div class="pi" data-pane="2"></div>
         <div class="pi" data-pane="3"></div>
         <div class="pi" data-pane="4"></div>
@@ -454,7 +458,7 @@ html[data-theme="dark"] .task-expr{background:rgba(34,197,94,.08)}
   <!-- =================== BOTTOM BAR =================== -->
   <div class="bottombar">
     <div class="keys">
-      <span class="key"><kbd>1</kbd>–<kbd>4</kbd> panes</span>
+      <span class="key"><kbd>0</kbd>–<kbd>4</kbd> panes</span>
       <span class="key"><kbd>←</kbd> <kbd>→</kbd> step</span>
       <span class="key"><kbd>Space</kbd> next</span>
       <span class="key"><kbd>T</kbd> theme</span>
@@ -464,10 +468,10 @@ html[data-theme="dark"] .task-expr{background:rgba(34,197,94,.08)}
 
 </div>
 
-<script src="data.js?v=202610210932"></script>
-<script src="pdf-data.js?v=202610210932"></script>
-<script src="pdf.min.js?v=202610210932"></script>
-<script src="pdf-viewer.js?v=202610210932"></script>
-<script src="app.js?v=202610210932"></script>
+<script src="data.js?v=202610211056"></script>
+<script src="pdf-data.js?v=202610211056"></script>
+<script src="pdf.min.js?v=202610211056"></script>
+<script src="pdf-viewer.js?v=202610211056"></script>
+<script src="app.js?v=202610211056"></script>
 </body>
 </html>
